@@ -1,21 +1,30 @@
 package es.minsait.tm.license.gen;
 
+import com.sun.istack.internal.Nullable;
 import javassist.*;
+import javassist.bytecode.AttributeInfo;
+import javassist.bytecode.ConstPool;
 import picocli.CommandLine;
 
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 
 @CommandLine.Command(name = "enhance")
 public class Enhancer implements Runnable {
+    @CommandLine.Option(names = {"--product", "-p"}, required = true, description = "Product identifier")
+    private String productId;
 
-    /*@CommandLine.Option(names = {"--keyfile", "-kf"}, required = true)
-    private String pubKeyFile;*/
+    @CommandLine.Option(names = {"--key", "-k"}, required = true, description = "Public key file")
+    private String pubKeyFile;
 
-    @CommandLine.Option(names = {"--checkinv", "-ci"})
+    @CommandLine.Option(names = {"--check", "-c"}, description = "Check interval in ms.")
     private int checkInterval = 3600_000;
+
+    @CommandLine.Option(names = {"--wait", "-w"}, description = "Time interval before the program terminates when verification fails (in ms.)")
+    private int exitWaitTime = 3600_000;
 
     @CommandLine.Option(names = {"--tsfile", "-tf"})
     private String timestampFile = ".chkfile";
@@ -24,41 +33,97 @@ public class Enhancer implements Runnable {
     private List<String> classNames;
 
 
-    public Enhancer() {}
+    private Enhancer() {}
 
-    public Enhancer(List<String> classNames) {
+
+    public Enhancer(String productId, int checkInterval, int exitWaitTime, String timestampFile, List<String> classNames) {
+        this.productId = productId;
+        this.checkInterval = checkInterval;
+        this.exitWaitTime = exitWaitTime;
+        this.timestampFile = timestampFile;
         this.classNames = classNames;
     }
 
 
-    private void generate(String className) throws Exception
+    @Nullable
+    private CtClass enhance(String className) throws Exception
     {
         ClassPool pool = ClassPool.getDefault();
         CtClass targetClass = pool.get(className);
         try {
-            targetClass.getDeclaredField("__cf");
-            return;   // already exists
+            targetClass.getDeclaredField("_INST_");
+            return null;   // already exists
         } catch (NotFoundException e) { /* continue */ }
 
         final CtClass ctCodeSnippets = pool.get(CodeSnippets.class.getName());
-        targetClass.addField(new CtField(ctCodeSnippets.getField("__cf"), targetClass));
+        targetClass.addField(new CtField(ctCodeSnippets.getField("_INST_"), targetClass),
+                "new Object[] {" +
+                        "null," +
+                        toByteArrayCode(new byte[] {1,2,3,4,5}) + "," +
+                        "null," +
+                        "Integer.valueOf(" + checkInterval +")," +
+                        toByteArrayCode(encodeString(timestampFile)) + "," +
+                        toByteArrayCode(encodeString(productId)) + "," +
+                        "Integer.valueOf(" + exitWaitTime + ")" +
+                    "};"
+                );
+        CtMethod _init_ = ctCodeSnippets.getDeclaredMethod("_init_");
+        CtMethod _initCopy_ = CtNewMethod.copy(_init_, "test1", targetClass, null);
+        /*for (AttributeInfo attribute : _init_.getMethodInfo2().getAttributes()) {
+            _initCopy_.getMethodInfo().addAttribute(attribute);
+        }*/
+        targetClass.addMethod(_initCopy_);
 
-        CtMethod __conf = ctCodeSnippets.getDeclaredMethod("__conf");
-        __conf = CtNewMethod.copy(__conf, targetClass, null);
-        // __cf[1] = public key
-        __conf.insertAfter("if (__cf[1] == null) {" +
-                "__cf[1] = new byte[]{1, 2, 3, 4, 5};" +
-                "__cf[3] = " + checkInterval + ";" +
-                "__cf[4] = \"" + timestampFile + "\";}");
-        targetClass.addMethod(__conf);
+        /*final CtMethod test = ctCodeSnippets.getDeclaredMethod("test");
+        final CtMethod testCopy = CtNewMethod.copy(test, targetClass, null);
+        targetClass.addMethod(testCopy);*/
 
-        for (CtConstructor constructor : targetClass.getConstructors()) {
-            constructor.insertBeforeBody("__conf();");
+        /*for (CtConstructor constructor : targetClass.getConstructors()) {
+            constructor.insertBeforeBody("_init_();");
+        }*/
+
+        /*final CtClass ctObject = pool.get("java.lang.Object");
+        final CtField f = new CtField(ctObject, "_INST_", targetClass);
+        targetClass.addField(f);*/
+
+        targetClass.rebuildClassFile();
+        return targetClass;
+    }
+
+    public void generate(String className) throws Exception {
+        final CtClass targetClass = enhance(className);
+        if (targetClass != null) {
+            final URL url = targetClass.getURL();
+            //targetClass.writeFile(Paths.get(url.toURI()).getParent().toString());
+            Files.write(Paths.get(url.toURI()), targetClass.toBytecode());
         }
+    }
 
-        final URL url = targetClass.getURL();
-        //targetClass.writeFile(Paths.get(url.toURI()).getParent().toString());
-        Files.write(Paths.get(url.toURI()), targetClass.toBytecode());
+    public Class<?> enhanceClass(String className) throws Exception {
+        final CtClass targetClass = enhance(className);
+        if (targetClass != null) {
+            return targetClass.toClass(Thread.currentThread().getContextClassLoader(), null);
+        } else
+            return Thread.currentThread().getContextClassLoader().loadClass(className);
+    }
+
+
+    private static byte[] encodeString(String s) {
+        final byte[] buf = s.getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < buf.length; i++) {
+            buf[i] = (byte)((buf[i] ^ 0x55) & 0xff);
+        }
+        return buf;
+    }
+
+    private static String toByteArrayCode(byte[] array) {
+        final StringBuilder sb = new StringBuilder("new byte[]{");
+        for (int i = 0; i < array.length; i++) {
+            if (i != 0) sb.append(",");
+            sb.append(array[i]);
+        }
+        sb.append("}");
+        return sb.toString();
     }
 
 
