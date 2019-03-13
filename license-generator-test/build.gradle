@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+}
+
+group 'es.minsait.tm.license'
+version '0.1'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile rootProject
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+compileJava.doLast {
+    println("Enhancing code...")
+    javaexec {
+        classpath = sourceSets.main.runtimeClasspath
+        main = 'es.minsait.tm.license.gen.Enhancer'
+        args += 'es.minsait.tm.license.test.SomeProtectedClass'
+    }
+}

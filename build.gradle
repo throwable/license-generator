@@ -1,0 +1,18 @@
+plugins {
+    id 'java'
+}
+
+group 'es.minsait.tm.license'
+version '0.1'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'org.javassist', name: 'javassist', version: '3.23.1-GA'
+    implementation 'info.picocli:picocli:3.9.5'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}

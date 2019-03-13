@@ -1,0 +1,4 @@
+rootProject.name = 'licence-generator'
+include 'license-generator-test'
+include 'license-generator-gradle-plugin'
+
