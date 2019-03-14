@@ -1,7 +1,7 @@
 package es.minsait.tm.license.gen;
 
 import java.io.*;
-import java.net.URL;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,12 +13,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class CodeSnippets {
     // [0]: byte[]: content of license file xored with 0x55 or Exception
@@ -28,7 +22,13 @@ public class CodeSnippets {
     // [4]: byte[]: path of last timestamp file - xored 0x55
     // [5]: byte[]: productID - xored 0x55
     // [6]: Integer: milliseconds to wait before exit in case if license verification fail
+    // [7]: RuntimeException: throwable to throw when the license is not valid
     private static Object[] _INST_;
+
+
+    public CodeSnippets() {
+        _init_();
+    }
 
     private synchronized void _init_() {
         // Set up parameters
@@ -53,40 +53,19 @@ public class CodeSnippets {
             */
             // TODO: encode text
             final String $lp = "license.key";
-
+            InputStream r = null;
             try {
-                InputStream r = this.getClass().getResourceAsStream($lp);
-                if (r == null) {
-                    String f = System.getProperty($lp);
-                    if (f == null) {
-                        String u = this.getClass().getResource(this.getClass().getSimpleName() + ".class").toString();
-
-                        if (u.startsWith("jar:")) {
-                            // detect basedir where the jar is located
-                            /*
-                            jar:file:/D:/workspaces/idea/toa-data-extractor/target/toa-data-extractor.jar!/es/indra/tcol/tde/Main.class
-                             */
-                            Pattern regex = Pattern.compile("jar:([^!]+).*");
-                            Matcher m = regex.matcher(u);
-                            if (!m.matches())
-                                throw new IOException(new IllegalStateException());
-                            String jarUrl = m.group(1);
-                            try {
-                                f = Paths.get(new URL(jarUrl).toURI()).toFile().getParent();
-                            } catch (Exception e) {
-                                throw new IOException(e);
-                            }
-                        } else {
-                            // local run - set as current dir
-                            /*
-                            file:/D:/workspaces/idea/toa-data-extractor/target/classes/es/indra/tcol/tde/ApplicationContext.class
-                            */
-                            // TODO: encode text
-                            File userDir = new File(System.getProperty("user.dir"));
-                            f = userDir.getPath();
-                        }
+                if (System.getProperty($lp) != null) {
+                    // Defined system property license.key
+                    r = Files.newInputStream(Paths.get(System.getProperty($lp)));
+                } else {
+                    // Try to get license.key from classpath root
+                    r = this.getClass().getResourceAsStream($lp);
+                    if (r == null) {
+                        // Get license.key from current directory
+                        // TODO: encode text
+                        r = Files.newInputStream(Paths.get(System.getProperty("user.dir"), $lp));
                     }
-                    r = Files.newInputStream(Paths.get(f));
                 }
 
                 ByteArrayOutputStream bufOut = new ByteArrayOutputStream();
@@ -103,6 +82,8 @@ public class CodeSnippets {
                 state[0] = buf;
             } catch (Exception e) {
                 state[0] = e;
+            } finally {
+                if (r != null) try { r.close(); } catch (Exception e) {/* ignore */}
             }
             //stateConsumer.accept(state);
         }
@@ -230,19 +211,25 @@ public class CodeSnippets {
                 state[2] = System.nanoTime() + (Integer) state[3] * 1000000;
             } catch (Exception e) {
                 state[0] = e;
-                return;
             }
         }
 
         if ((state[0] instanceof Exception) && !(oldState0 instanceof Exception)) {
             // exit in new thread with delay
-            System.out.println(state[0]);
+            //System.out.println(state[0]);
             // TODO: encode
             try {
                 Files.write(Paths.get(System.getProperty("user.dir"), "licence.fail"),
                         state[0].toString().getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) { /* ignore */ }
-            System.exit(100);
+            try {
+                //System.exit(100);
+                // TODO: encode
+                final Method exit = Class.forName("java.lang.System").getMethod("exit", Integer.TYPE);
+                exit.invoke(null, 100);
+            } catch (Exception ex) {/*ignore*/}
+            // finally throw exception with the wrong stack trace
+            throw (RuntimeException) state[7];
         }
     }
 }

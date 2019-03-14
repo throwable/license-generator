@@ -12,11 +12,12 @@ import java.util.Collections;
 public class TestEnhancer {
     @Test
     public void testGenerator() throws Exception {
-        final Enhancer enhancer = new Enhancer("Test Product v1.0", 1000, 2000, ".licence-test",
-                Collections.singletonList("es.minsait.tm.license.test.SomeProtectedClass"));
-        enhancer.generate("es.minsait.tm.license.test.SomeProtectedClass");
-        //final Class<?> enhancedClass = enhancer.enhanceClass("es.minsait.tm.license.test.SomeProtectedClass");
-        //enhancedClass.newInstance();
-        final Class<?> aClass = Class.forName("es.minsait.tm.license.test.SomeProtectedClass");
+        final Enhancer enhancer = new Enhancer("Test Product v1.0",
+                util.asLocalPath("public.key").toString(),
+                1000, ".licence-test");
+        //enhancer.generate("es.minsait.tm.license.test.SomeProtectedClass");
+        final Class<?> enhancedClass = enhancer.enhanceClass("es.minsait.tm.license.test.SomeProtectedClass");
+        enhancedClass.newInstance();
+        //final Class<?> aClass = Class.forName("es.minsait.tm.license.test.SomeProtectedClass");
     }
 }

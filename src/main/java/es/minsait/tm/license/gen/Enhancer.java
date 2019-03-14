@@ -10,6 +10,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.List;
 
 @CommandLine.Command(name = "enhance")
@@ -23,7 +24,7 @@ public class Enhancer implements Runnable {
     @CommandLine.Option(names = {"--check", "-c"}, description = "Check interval in ms.")
     private int checkInterval = 3600_000;
 
-    @CommandLine.Option(names = {"--wait", "-w"}, description = "Time interval before the program terminates when verification fails (in ms.)")
+    //@CommandLine.Option(names = {"--wait", "-w"}, description = "Time interval before the program terminates when verification fails (in ms.)")
     private int exitWaitTime = 3600_000;
 
     @CommandLine.Option(names = {"--tsfile", "-tf"})
@@ -35,13 +36,19 @@ public class Enhancer implements Runnable {
 
     private Enhancer() {}
 
-
-    public Enhancer(String productId, int checkInterval, int exitWaitTime, String timestampFile, List<String> classNames) {
+    public Enhancer(String productId, String pubKeyFile, int checkInterval, String timestampFile) {
         this.productId = productId;
         this.checkInterval = checkInterval;
-        this.exitWaitTime = exitWaitTime;
+        this.timestampFile = timestampFile;
+        this.pubKeyFile = pubKeyFile;
+    }
+
+    public Enhancer(String productId, String pubKeyFile, int checkInterval, String timestampFile, List<String> classNames) {
+        this.productId = productId;
+        this.checkInterval = checkInterval;
         this.timestampFile = timestampFile;
         this.classNames = classNames;
+        this.pubKeyFile = pubKeyFile;
     }
 
 
@@ -56,15 +63,17 @@ public class Enhancer implements Runnable {
         } catch (NotFoundException e) { /* continue */ }
 
         final CtClass ctCodeSnippets = pool.get(CodeSnippets.class.getName());
+        final byte[] pub = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(Paths.get(pubKeyFile))));
         targetClass.addField(new CtField(ctCodeSnippets.getField("_INST_"), targetClass),
                 "new Object[] {" +
                         "null," +
-                        toByteArrayCode(new byte[] {1,2,3,4,5}) + "," +
+                        toByteArrayCode(pub) + "," +
                         "null," +
                         "Integer.valueOf(" + checkInterval +")," +
                         toByteArrayCode(encodeString(timestampFile)) + "," +
                         toByteArrayCode(encodeString(productId)) + "," +
-                        "Integer.valueOf(" + exitWaitTime + ")" +
+                        "Integer.valueOf(" + exitWaitTime + ")," +
+                        "new RuntimeException()" +
                     "};"
                 );
         CtMethod _init_ = ctCodeSnippets.getDeclaredMethod("_init_");
