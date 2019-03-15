@@ -16,11 +16,30 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
-compileJava.doLast {
-    println("Enhancing code...")
+/*compileJava.doLast {
+    println("Injecting license verification code...")
     javaexec {
         classpath = sourceSets.main.runtimeClasspath
         main = 'es.minsait.tm.license.gen.Enhancer'
+        args += '-p'
+        args += 'Test product V1.0'
+        args += '-k'
+        args += "" + project.projectDir + "/src/test/resources/public.key"
         args += 'es.minsait.tm.license.test.SomeProtectedClass'
+    }
+}*/
+
+task enhance {
+    doLast {
+        println("Injecting license verification code...")
+        javaexec {
+            classpath = sourceSets.main.runtimeClasspath
+            main = 'es.minsait.tm.license.gen.Enhancer'
+            args += '-p'
+            args += 'Test product V1.0'
+            args += '-k'
+            args += "" + project.projectDir + "/src/test/resources/public.key"
+            args += 'es.minsait.tm.license.test.SomeProtectedClass'
+        }
     }
 }

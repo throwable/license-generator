@@ -1,9 +1,6 @@
 package es.minsait.tm.license.gen;
 
-import com.sun.istack.internal.Nullable;
 import javassist.*;
-import javassist.bytecode.AttributeInfo;
-import javassist.bytecode.ConstPool;
 import picocli.CommandLine;
 
 import java.net.URL;
@@ -21,38 +18,29 @@ public class Enhancer implements Runnable {
     @CommandLine.Option(names = {"--key", "-k"}, required = true, description = "Public key file")
     private String pubKeyFile;
 
-    @CommandLine.Option(names = {"--check", "-c"}, description = "Check interval in ms.")
+    @CommandLine.Option(names = {"--check", "-c"}, description = "License periodic verification interval in ms.")
     private int checkInterval = 3600_000;
 
-    //@CommandLine.Option(names = {"--wait", "-w"}, description = "Time interval before the program terminates when verification fails (in ms.)")
-    private int exitWaitTime = 3600_000;
-
-    @CommandLine.Option(names = {"--tsfile", "-tf"})
-    private String timestampFile = ".chkfile";
-
-    @CommandLine.Parameters(arity = "1..*", paramLabel = "CLASS", description = "Class(es) to process.")
+    @CommandLine.Parameters(arity = "1..*", paramLabel = "classes", description = "Class(es) to process.")
     private List<String> classNames;
 
 
     private Enhancer() {}
 
-    public Enhancer(String productId, String pubKeyFile, int checkInterval, String timestampFile) {
+    public Enhancer(String productId, String pubKeyFile, int checkInterval) {
         this.productId = productId;
         this.checkInterval = checkInterval;
-        this.timestampFile = timestampFile;
         this.pubKeyFile = pubKeyFile;
     }
 
-    public Enhancer(String productId, String pubKeyFile, int checkInterval, String timestampFile, List<String> classNames) {
+    public Enhancer(String productId, String pubKeyFile, int checkInterval, List<String> classNames) {
         this.productId = productId;
         this.checkInterval = checkInterval;
-        this.timestampFile = timestampFile;
         this.classNames = classNames;
         this.pubKeyFile = pubKeyFile;
     }
 
 
-    @Nullable
     private CtClass enhance(String className) throws Exception
     {
         ClassPool pool = ClassPool.getDefault();
@@ -70,26 +58,24 @@ public class Enhancer implements Runnable {
                         toByteArrayCode(pub) + "," +
                         "null," +
                         "Integer.valueOf(" + checkInterval +")," +
-                        toByteArrayCode(encodeString(timestampFile)) + "," +
+                        //toByteArrayCode(encodeString(tsFile(productId))) + "," +
+                        "null," +
                         toByteArrayCode(encodeString(productId)) + "," +
-                        "Integer.valueOf(" + exitWaitTime + ")," +
+                        "null," +
                         "new RuntimeException()" +
                     "};"
                 );
         CtMethod _init_ = ctCodeSnippets.getDeclaredMethod("_init_");
-        CtMethod _initCopy_ = CtNewMethod.copy(_init_, "test1", targetClass, null);
-        /*for (AttributeInfo attribute : _init_.getMethodInfo2().getAttributes()) {
-            _initCopy_.getMethodInfo().addAttribute(attribute);
-        }*/
+        CtMethod _initCopy_ = CtNewMethod.copy(_init_, targetClass, null);
         targetClass.addMethod(_initCopy_);
 
         /*final CtMethod test = ctCodeSnippets.getDeclaredMethod("test");
         final CtMethod testCopy = CtNewMethod.copy(test, targetClass, null);
         targetClass.addMethod(testCopy);*/
 
-        /*for (CtConstructor constructor : targetClass.getConstructors()) {
+        for (CtConstructor constructor : targetClass.getConstructors()) {
             constructor.insertBeforeBody("_init_();");
-        }*/
+        }
 
         /*final CtClass ctObject = pool.get("java.lang.Object");
         final CtField f = new CtField(ctObject, "_INST_", targetClass);

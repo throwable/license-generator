@@ -26,14 +26,13 @@ public class LicenseSigner implements Runnable
     @CommandLine.Option(names = {"-pri"}, required = true, description = "Private key file name")
     private String privateKeyFile;
 
-    @CommandLine.Option(names = {"-l"}, required = true, description = "License definition file")
+    @CommandLine.Option(names = {"-l"}, required = true, description = "license.properties file to sign")
     private String licenseFile;
 
     @CommandLine.Option(names = {"-o"}, description = "Output directory for generated license.key")
     private String outputDir;
 
-    public LicenseSigner() {
-    }
+    private LicenseSigner() {}
 
     public LicenseSigner(String publicKeyFile, String privateKeyFile, String licenseFile) {
         this.publicKeyFile = publicKeyFile;

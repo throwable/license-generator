@@ -6,18 +6,26 @@ import es.minsait.tm.license.gen.LicenseSigner;
 import org.junit.*;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.security.Permission;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static es.minsait.tm.license.test.util.asLocalPath;
 import static org.junit.Assert.*;
 
 public class TestLicenseSigner {
+    private final static String PRODUCT_ID = "Test product V1.0";
+
     private static Runnable codeSnippetVerifier, enhancedClassVerifier;
+
 
     @Test
     public void testValidLicenseVerification() throws Exception {
@@ -39,28 +47,120 @@ public class TestLicenseSigner {
         assertEquals("java.lang.RuntimeException: 2", getLicenseFail());
     }
 
+    @Test
+    public void testLicenseVerificationInterval() throws Exception {
+        genLicenseKeyFile("license.properties");
+        final Path tsFile = timestampFile();
+
+        assertTrue(verifyLicense(codeSnippetVerifier));
+        final FileTime lastModifiedTime = Files.getLastModifiedTime(tsFile);
+
+        // repeat verification
+        assertTrue(verifyLicense(codeSnippetVerifier));
+        // the second verification must not be done as the verification time was not expired
+        assertEquals(lastModifiedTime, Files.getLastModifiedTime(tsFile));
+
+        Thread.sleep(1000);
+
+        // verification time expired -- new verification must be done
+        assertTrue(verifyLicense(codeSnippetVerifier));
+        assertNotEquals(lastModifiedTime, Files.getLastModifiedTime(tsFile));
+    }
+
+    @Test
+    public void testLicenseExpiration() throws Exception {
+        genLicenseKeyFile("license.properties");
+        final Path tsFile = timestampFile();
+
+        assertTrue(verifyLicense(codeSnippetVerifier));
+
+        Thread.sleep(1000); // verification time expiration
+
+        Files.setLastModifiedTime(tsFile, FileTime.from(LocalDate.of(3001, 1, 2)
+                .atStartOfDay(ZoneId.systemDefault()).toInstant()));
+        assertFalse(verifyLicense(codeSnippetVerifier));
+        assertEquals("java.lang.RuntimeException: 2", getLicenseFail());
+    }
+
+    @Test
+    public void testValidLicenseVerificationEnhanced() throws Exception {
+        genLicenseKeyFile("license.properties");
+        assertTrue(verifyLicense(enhancedClassVerifier));
+    }
+
+    @Test
+    public void testInvalidLicenseVerificationEnhanced() throws Exception {
+        genLicenseKeyFile("license-invalid.properties");
+        assertFalse(verifyLicense(enhancedClassVerifier));
+        assertEquals("java.lang.RuntimeException: 1", getLicenseFail());
+    }
+
+    @Test
+    public void testExpiredLicenseVerificationEnhanced() throws Exception {
+        genLicenseKeyFile("license-expired.properties");
+        assertFalse(verifyLicense(enhancedClassVerifier));
+        assertEquals("java.lang.RuntimeException: 2", getLicenseFail());
+    }
+
+    @Test
+    public void testLicenseVerificationIntervalEnhanced() throws Exception {
+        genLicenseKeyFile("license.properties");
+        final Path tsFile = timestampFile();
+
+        assertTrue(verifyLicense(enhancedClassVerifier));
+        final FileTime lastModifiedTime = Files.getLastModifiedTime(tsFile);
+
+        // repeat verification
+        assertTrue(verifyLicense(enhancedClassVerifier));
+        // the second verification must not be done as the verification time was not expired
+        assertEquals(lastModifiedTime, Files.getLastModifiedTime(tsFile));
+
+        Thread.sleep(1000);
+
+        // verification time expired -- new verification must be done
+        assertTrue(verifyLicense(enhancedClassVerifier));
+        assertNotEquals(lastModifiedTime, Files.getLastModifiedTime(tsFile));
+    }
+
+    @Test
+    public void testLicenseExpirationEnhanced() throws Exception {
+        genLicenseKeyFile("license.properties");
+        final Path tsFile = timestampFile();
+
+        assertTrue(verifyLicense(enhancedClassVerifier));
+
+        Thread.sleep(1000); // verification time expiration
+
+        Files.setLastModifiedTime(tsFile, FileTime.from(LocalDate.of(3001, 1, 2)
+                .atStartOfDay(ZoneId.systemDefault()).toInstant()));
+        assertFalse(verifyLicense(enhancedClassVerifier));
+        assertEquals("java.lang.RuntimeException: 2", getLicenseFail());
+    }
+
+
+
 
     private boolean verifyLicense(Runnable verifier) throws Exception
     {
-        final SynchronousQueue<Boolean> verifiedStatus = new SynchronousQueue<>();
+        final AtomicReference<Boolean> verifiedStatus = new AtomicReference<>();
         final Thread thread = new Thread(() -> {
             try {
                 try {
                     // Try to verify license
                     verifier.run();
                     // Verification passed
-                    verifiedStatus.put(Boolean.TRUE);
+                    verifiedStatus.set(Boolean.TRUE);
                 } catch (RuntimeException e) {
                     // Verification failed and tried to call System.exit(100)
-                    verifiedStatus.put(Boolean.FALSE);
+                    verifiedStatus.set(Boolean.FALSE);
                 }
             } catch (Exception e) {
                 /* ignore */
             }
         });
         thread.start();
-        final Boolean status = verifiedStatus.poll(1, TimeUnit.SECONDS);
-        thread.join();
+        thread.join(1000);
+        final Boolean status = verifiedStatus.get();
 
         if (status == null)
             throw new RuntimeException("Method hangs up");
@@ -71,8 +171,9 @@ public class TestLicenseSigner {
 
     @Before @After
     public void removeLicenseFailFile() throws Exception {
+        try { Files.deleteIfExists(timestampFile()); } catch (Exception e) {/*ignore*/}
         Files.deleteIfExists(Paths.get(System.getProperty("user.dir"), "license.key"));
-        Files.deleteIfExists(Paths.get(System.getProperty("user.dir"), "licence.fail"));
+        Files.deleteIfExists(Paths.get(System.getProperty("user.dir"), "license.fail"));
 
         // clean loaded license & time check interval
         final Field _csInst_ = CodeSnippets.class.getDeclaredField("_INST_");
@@ -84,10 +185,23 @@ public class TestLicenseSigner {
 
     private static String getLicenseFail() {
         try {
-            return String.join("\n", Files.readAllLines(Paths.get(System.getProperty("user.dir"), "licence.fail")));
+            return String.join("\n", Files.readAllLines(Paths.get(System.getProperty("user.dir"), "license.fail")));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static Path timestampFile() {
+        final Properties properties = new Properties();
+        try (InputStream is = Files.newInputStream(Paths.get("license.key"))) {
+            properties.load(is);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+        final String productId = properties.getProperty("productId");
+        final String signature = properties.getProperty("signature");
+        return Paths.get(System.getProperty("java.io.tmpdir"),
+                ".lock-" + Integer.toHexString(productId.hashCode()) + Integer.toHexString(signature.hashCode()));
     }
 
     private static void genLicenseKeyFile(String licenseResource) {
@@ -101,8 +215,8 @@ public class TestLicenseSigner {
     @BeforeClass
     public static void setup() throws Exception
     {
-        final Enhancer enhancer = new Enhancer("Test product V1.0",
-                asLocalPath("public.key").toString(), 1000, ".licence-test");
+        final Enhancer enhancer = new Enhancer(PRODUCT_ID,
+                asLocalPath("public.key").toString(), 1000);
         final Class<?> enhancedClass = enhancer.enhanceClass("es.minsait.tm.license.test.SomeProtectedClass");
         enhancedClassVerifier = () -> {
             try {
@@ -135,7 +249,7 @@ public class TestLicenseSigner {
     }
 
     @AfterClass
-    public static void removeLicenseFile() throws Exception {
+    public static void removeLicenseFile() {
         System.setSecurityManager(null);
     }
 }

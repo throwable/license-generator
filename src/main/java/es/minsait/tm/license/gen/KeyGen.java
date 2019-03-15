@@ -15,10 +15,10 @@ import java.util.Collections;
 
 public class KeyGen implements Runnable {
     @CommandLine.Option(names = {"-pub"}, required = true, description = "Public key file name")
-    String publicKeyFile;
+    private String publicKeyFile;
 
     @CommandLine.Option(names = {"-pri"}, required = true, description = "Private key file name")
-    String privateKeyFile;
+    private String privateKeyFile;
 
 
     private KeyGen() {}
