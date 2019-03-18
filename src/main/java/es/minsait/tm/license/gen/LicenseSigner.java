@@ -17,24 +17,27 @@ import java.util.Comparator;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+import static picocli.CommandLine.*;
 
+@Command(name = "sign", description = "Sign license and generate license.key file")
 public class LicenseSigner implements Runnable
 {
-    @CommandLine.Option(names = {"-pub"}, required = true, description = "Public key file name")
-    private String publicKeyFile;
+    @Option(names = {"-pub"}, required = true, description = "Public key file")
+    private Path publicKeyFile;
 
-    @CommandLine.Option(names = {"-pri"}, required = true, description = "Private key file name")
-    private String privateKeyFile;
+    @Option(names = {"-pri"}, required = true, description = "Private key file")
+    private Path privateKeyFile;
 
-    @CommandLine.Option(names = {"-l"}, required = true, description = "license.properties file to sign")
-    private String licenseFile;
+    @Option(names = {"-l"}, required = true, description = "license.properties file to sign")
+    private Path licenseFile;
 
-    @CommandLine.Option(names = {"-o"}, description = "Output directory for generated license.key")
-    private String outputDir;
+    @Option(names = {"-o"}, description = "Output directory for generated license.key (default: ${DEFAULT-VALUE})")
+    private Path outputDir = Paths.get(System.getProperty("user.dir"));
+
 
     private LicenseSigner() {}
 
-    public LicenseSigner(String publicKeyFile, String privateKeyFile, String licenseFile) {
+    public LicenseSigner(Path publicKeyFile, Path privateKeyFile, Path licenseFile) {
         this.publicKeyFile = publicKeyFile;
         this.privateKeyFile = privateKeyFile;
         this.licenseFile = licenseFile;
@@ -44,7 +47,7 @@ public class LicenseSigner implements Runnable
     public Properties sign() throws Exception {
         KeyPair keyPair = loadKeys();
         final Properties license = new Properties();
-        try (InputStream is = Files.newInputStream(Paths.get(licenseFile))) {
+        try (InputStream is = Files.newInputStream(licenseFile)) {
             license.load(is);
         }
 
@@ -78,9 +81,7 @@ public class LicenseSigner implements Runnable
     public void run() {
         try {
             final Properties signedLicense = sign();
-            final Path licenseKey = outputDir != null ?
-                    Paths.get(outputDir, "license.key") :
-                    Paths.get(System.getProperty("user.dir"), "license.key");
+            final Path licenseKey = outputDir.resolve("license.key");
             try (OutputStream os = Files.newOutputStream(licenseKey)) {
                 signedLicense.store(os, "License Key File. Please put it in the product directory folder " +
                         "or modify classpath to include this file as a root resource.");
@@ -99,8 +100,8 @@ public class LicenseSigner implements Runnable
 
 
     private KeyPair loadKeys() throws Exception {
-        byte[] pub = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(Paths.get(publicKeyFile))));
-        byte[] pri = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(Paths.get(privateKeyFile))));
+        byte[] pub = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(publicKeyFile)));
+        byte[] pri = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(privateKeyFile)));
         // Generate KeyPair.
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(

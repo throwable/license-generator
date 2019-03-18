@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.security.Permission;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Properties;
@@ -206,9 +207,9 @@ public class TestLicenseSigner {
 
     private static void genLicenseKeyFile(String licenseResource) {
         new LicenseSigner(
-                asLocalPath("public.key").toString(),
-                asLocalPath("private.key").toString(),
-                asLocalPath(licenseResource).toString()
+                asLocalPath("public.key"),
+                asLocalPath("private.key"),
+                asLocalPath(licenseResource)
         ).run();
     }
 
@@ -216,7 +217,7 @@ public class TestLicenseSigner {
     public static void setup() throws Exception
     {
         final Enhancer enhancer = new Enhancer(PRODUCT_ID,
-                asLocalPath("public.key").toString(), 1000);
+                asLocalPath("public.key"), Duration.ofSeconds(1));
         final Class<?> enhancedClass = enhancer.enhanceClass("es.minsait.tm.license.test.SomeProtectedClass");
         enhancedClassVerifier = () -> {
             try {

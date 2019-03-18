@@ -6,34 +6,42 @@ import picocli.CommandLine;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 
-@CommandLine.Command(name = "enhance")
-public class Enhancer implements Runnable {
-    @CommandLine.Option(names = {"--product", "-p"}, required = true, description = "Product identifier")
+import static picocli.CommandLine.*;
+
+@Command(name = "enhance", description = "Enhance compiled classes with the license check code")
+public class Enhancer implements Runnable
+{
+    @Option(names = {"--product", "-p"}, required = true, description = "Product identifier")
     private String productId;
 
-    @CommandLine.Option(names = {"--key", "-k"}, required = true, description = "Public key file")
-    private String pubKeyFile;
+    @Option(names = {"--key", "-k"}, required = true, description = "Public key file")
+    private Path pubKeyFile;
 
-    @CommandLine.Option(names = {"--check", "-c"}, description = "License periodic verification interval in ms.")
-    private int checkInterval = 3600_000;
+    @Option(names = {"--check", "-c"}, description = "License periodic verification interval (default: ${DEFAULT-VALUE}).")
+    private Duration checkInterval = Duration.ofMinutes(10);
 
-    @CommandLine.Parameters(arity = "1..*", paramLabel = "classes", description = "Class(es) to process.")
+    @Option(names = {"-classpath", "-cp"}, description = "Target classpath")
+    private String classpathList;
+
+    @Parameters(arity = "1..*", paramLabel = "CLASS", description = "Class(es) to process.")
     private List<String> classNames;
 
 
     private Enhancer() {}
 
-    public Enhancer(String productId, String pubKeyFile, int checkInterval) {
+    public Enhancer(String productId, Path pubKeyFile, Duration checkInterval) {
         this.productId = productId;
         this.checkInterval = checkInterval;
         this.pubKeyFile = pubKeyFile;
     }
 
-    public Enhancer(String productId, String pubKeyFile, int checkInterval, List<String> classNames) {
+    public Enhancer(String productId, Path pubKeyFile, Duration checkInterval, List<String> classNames) {
         this.productId = productId;
         this.checkInterval = checkInterval;
         this.classNames = classNames;
@@ -43,22 +51,23 @@ public class Enhancer implements Runnable {
 
     private CtClass enhance(String className) throws Exception
     {
-        ClassPool pool = ClassPool.getDefault();
+        final ClassPool pool = ClassPool.getDefault();
+        if (classpathList != null)
+            pool.appendPathList(classpathList);
         CtClass targetClass = pool.get(className);
         try {
             targetClass.getDeclaredField("_INST_");
-            return null;   // already exists
+            return null;   // already enhanced
         } catch (NotFoundException e) { /* continue */ }
 
         final CtClass ctCodeSnippets = pool.get(CodeSnippets.class.getName());
-        final byte[] pub = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(Paths.get(pubKeyFile))));
+        final byte[] pub = Base64.getDecoder().decode(String.join("\n", Files.readAllLines(pubKeyFile)));
         targetClass.addField(new CtField(ctCodeSnippets.getField("_INST_"), targetClass),
                 "new Object[] {" +
                         "null," +
                         toByteArrayCode(pub) + "," +
                         "null," +
-                        "Integer.valueOf(" + checkInterval +")," +
-                        //toByteArrayCode(encodeString(tsFile(productId))) + "," +
+                        "Integer.valueOf(" + checkInterval.toMillis() +")," +
                         "null," +
                         toByteArrayCode(encodeString(productId)) + "," +
                         "null," +

@@ -4,6 +4,7 @@ import picocli.CommandLine;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -13,19 +14,26 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Collections;
 
+import static picocli.CommandLine.*;
+import static picocli.CommandLine.Option;
+
+@Command(name = "keygen", description = "Generate public/private key pair")
 public class KeyGen implements Runnable {
-    @CommandLine.Option(names = {"-pub"}, required = true, description = "Public key file name")
-    private String publicKeyFile;
+    @Option(names = {"-pub"}, description = "Public key file name (default: ${DEFAULT-VALUE})")
+    private String publicKeyFileName = "public.key";
 
-    @CommandLine.Option(names = {"-pri"}, required = true, description = "Private key file name")
-    private String privateKeyFile;
+    @Option(names = {"-pri"}, description = "Private key file name (default: ${DEFAULT-VALUE})")
+    private String privateKeyFileName = "private.key";
 
+    @Option(names = {"-o"}, description = "Output directory for generated license.key (default: ${DEFAULT-VALUE})")
+    private Path outputDir = Paths.get(System.getProperty("user.dir"));
 
-    private KeyGen() {}
+    public KeyGen() {}
 
-    public KeyGen(String publicKeyFile, String privateKeyFile) {
-        this.publicKeyFile = publicKeyFile;
-        this.privateKeyFile = privateKeyFile;
+    public KeyGen(String publicKeyFileName, String privateKeyFileName, Path outputDir) {
+        this.publicKeyFileName = publicKeyFileName;
+        this.privateKeyFileName = privateKeyFileName;
+        this.outputDir = outputDir;
     }
 
     @Override
@@ -50,8 +58,8 @@ public class KeyGen implements Runnable {
 
         byte[] priv = pkcs8EncodedKeySpec.getEncoded();
         try {
-            Files.write(Paths.get(publicKeyFile), Collections.singletonList(Base64.getEncoder().encodeToString(pub)));
-            Files.write(Paths.get(privateKeyFile), Collections.singletonList(Base64.getEncoder().encodeToString(priv)));
+            Files.write(outputDir.resolve(publicKeyFileName), Collections.singletonList(Base64.getEncoder().encodeToString(pub)));
+            Files.write(outputDir.resolve(privateKeyFileName), Collections.singletonList(Base64.getEncoder().encodeToString(priv)));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
