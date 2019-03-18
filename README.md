@@ -111,4 +111,52 @@ compileKotlin.doLast {
 
 ### Maven
 
-TODO: ...
+```
+<pluginRepositories>
+    <pluginRepository>
+       <id>bintray-antkuranov</id>
+       <name>bintray-plugins</name>
+       <url>https://dl.bintray.com/antkuranov/pub</url>
+    </pluginRepository>
+</pluginRepository>
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.6.0</version>
+            <executions>
+                <execution>
+                    <phase>process-classes</phase>
+                    <goals>
+                        <goal>java</goal>
+                    </goals>
+                </execution>
+            </executions>
+            <configuration>
+                <mainClass>es.minsait.tm.license.gen.Main</mainClass>
+                <arguments>
+                    <argument>enhance</argument>
+                    <argument>-p</argument>
+                    <argument>My Product ID</argument>
+                    <argument>-k</argument>
+                    <argument>${project.basedir}/public.key</argument>
+                    <argument>my.product.SomeClass1</argument>
+                    <argument>my.product.SomeClass2</argument>
+                    <argument>my.product.SomeClass3</argument>
+                    ...
+                </arguments>
+                <includePluginDependencies>true</includePluginDependencies>
+            </configuration>
+            <dependencies>
+                <dependency>
+                    <groupId>es.minsait.tm.license</groupId>
+                    <artifactId>license-generator</artifactId>
+                    <version>0.1</version>
+                    <type>jar</type>
+                </dependency>
+            </dependencies>
+        </plugin>
+    </plugins>
+</build>
+```

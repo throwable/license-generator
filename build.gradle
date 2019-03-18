@@ -30,25 +30,6 @@ shadowJar {
 
 publishing {
     publications {
-        /*mavenJava(MavenPublication) {
-            from components.java
-            pom {
-                name = 'license-generator'
-                description = 'Build tool that protects your .class files with license permissions'
-                url = 'https://github.com/throwable/license-generator'
-                licenses {
-                    license {
-                        name = 'MIT'
-                        url = 'https://opensource.org/licenses/MIT'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:git://github.com/throwable/license-generator.git'
-                    developerConnection = 'scm:git:git://github.com/throwable/license-generator.git'
-                    url = 'https://github.com/throwable/license-generator/'
-                }
-            }
-        }*/
         shadow(MavenPublication) {
             project.shadow.component(it)
             pom {
@@ -67,9 +48,6 @@ publishing {
                     url = 'https://github.com/throwable/license-generator/'
                 }
             }
-            /*artifacts {
-                archives shadowJar
-            }*/
         }
     }
 }
@@ -78,7 +56,6 @@ publishing {
 bintray {
     user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
     key = project.hasProperty('bintrayKey') ? project.property('bintrayKey') : System.getenv('BINTRAY_KEY')
-    //publications = ['mavenJava', 'shadow']
     publications = ['shadow']
     pkg {
         repo = 'pub'
