@@ -1,7 +1,7 @@
 package es.minsait.tm.license.gen;
 
 import java.io.*;
-import java.lang.reflect.Method;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class CodeSnippets {
     // [0]: byte[]: content of license file xored with 0x55 or Exception
@@ -41,24 +43,50 @@ public class CodeSnippets {
             */
             // "license.key"
             final byte[] $a = {108, 105, 99, 101, 110, 115, 101, 46, 107, 101, 121};
-            // "license.key"
+
             InputStream r = null;
             try {
                 if (System.getProperty(new String($a)) != null) {
                     // Defined system property license.key
                     r = Files.newInputStream(Paths.get(System.getProperty(new String($a))));
                 } else {
-                    // Try to get license.key from classpath root
-                    r = this.getClass().getResourceAsStream(new String($a));
-                    if (r == null) {
-                        // Get license.key from current directory
-                        r = Files.newInputStream(Paths.get(System.getProperty(new String($b)), new String($a)));
+                    // Find license.key in the current directory
+                    Path f = Paths.get(System.getProperty(new String($b)), new String($a));
+                    if (Files.isReadable(f))
+                        r = Files.newInputStream(f);
+                    else {
+                        // Find license.key in the .jar file location
+                        // jar:file:/path/to/file.jar!/package/name/MyClass.class
+                        final String cr = this.getClass().getResource('/' + this.getClass().getName()
+                                .replace('.', '/') +
+                                // ".class"
+                                new String(new byte[] {46, 99, 108, 97, 115, 115})).toString();
+                        // "jar:"
+                        final String $j = new String(new byte[] {106, 97, 114, 58});
+                        if (cr.startsWith($j)) {
+                            // detect basedir where the .jar file is located
+                            final Matcher m = Pattern.compile($j + "([^!]+).*").matcher(cr);
+                            if (m.matches()) {
+                                // file:/path/to/file.jar
+                                f = Paths.get(new URL(m.group(1)).toURI()).resolveSibling(new String($a));
+                                if (Files.isReadable(f)) {
+                                    r = Files.newInputStream(f);
+                                }
+                            }
+                        }
+                        if (r == null) {
+                            // At last try to load license.key from classpath root
+                            r = this.getClass().getResourceAsStream("/" + new String($a));
+                            if (r == null)
+                                // this provokes FileNotFoundException
+                                Files.readAllBytes(f);
+                        }
                     }
                 }
 
-                ByteArrayOutputStream a = new ByteArrayOutputStream();
+                final ByteArrayOutputStream a = new ByteArrayOutputStream();
                 int nr;
-                byte[] b = new byte[16384];
+                final byte[] b = new byte[16384];
 
                 while ((nr = r.read(b, 0, b.length)) != -1) {
                     a.write(b, 0, nr);
